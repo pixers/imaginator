@@ -1,0 +1,33 @@
+[package]
+name = "imaginator"
+version = "0.2.1"
+authors = ["Błażej Święcicki <blazej.swiecicki@pixers.pl>"]
+
+[build-dependencies]
+imaginator-plugins = { path = "plugins" }
+mustache = "*"
+
+[dependencies]
+imaginator-common = { path = "common" }
+imaginator-plugins = { path = "plugins" }
+futures = "0.1.14"
+hyper = "=0.11.9"
+magick_rust = { path = "magick-rust" }
+pretty_env_logger = "*"
+tokio-core = "0.1.11"
+net2 = "0.2"
+num_cpus = "*"
+failure = "0.1"
+nom = "^3.2"
+lazy_static = "*"
+hyper-tls = "*"
+serde = "1.0"
+serde_derive = "1.0"
+serde_yaml = "0.7"
+lru-disk-cache = "^0.1"
+rust-crypto = "^0.2"
+base64 = "^0.9"
+flate2 = { version = "^1.0", features = ["zlib"] }
+regex = "0.2"
+chrono = "0.4"
+zip = "0.3.1"

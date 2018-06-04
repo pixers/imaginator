@@ -1,0 +1,17 @@
+[package]
+name = "imaginator-common"
+version = "0.1.0"
+authors = ["Błażej Święcicki <blazej.swiecicki@pixers.pl>"]
+
+[dependencies]
+failure = "0.1"
+hyper = "0.11"
+nom = "^3.2"
+base64 = "^0.9"
+rust-crypto = "^0.2"
+futures = "0.1.14"
+tokio-core = "0.1.11"
+lazy_static = "*"
+magick_rust = { path = "../magick-rust" }
+serde = "1.0"
+serde_derive = "1.0"

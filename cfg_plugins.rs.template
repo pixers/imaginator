@@ -1,0 +1,17 @@
+use imaginator_plugins;
+use std::any::TypeId;
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Filters {
+    {{#plugins}}
+        #[serde(flatten)]
+        {{.}}: imaginator_plugins::{{.}}::Config,
+    {{/plugins}}
+}
+
+impl Filters {
+    fn init_plugin_config(&self, config: &mut HashMap<TypeId, Box<Any>>) {
+        {{#plugins}}
+        config.insert(TypeId::of::<imaginator_plugins::{{.}}::Config>(), Box::new(self.{{.}}.clone()));
+        {{/plugins}}
+    }
+}
