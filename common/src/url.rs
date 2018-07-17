@@ -13,22 +13,26 @@ fn url(input: &str) -> IResult<&str, FilterArg> {
         result.push_str(&remaining[..n]);
         remaining = &remaining[n..];
         match remaining.chars().next().unwrap() {
-            ',' if stack == 0 => return IResult::Done(remaining, FilterArg::String(result)),
+            ',' if stack == 0 => return Ok((remaining, FilterArg::String(result))),
             ',' => { result.push_str(","); },
             '(' => { stack += 1; result.push_str("("); },
             ')' if stack > 0 => { stack -= 1; result.push_str(")"); },
-            ')' if result.len() == 0 => return IResult::Error(error_code!(nom::ErrorKind::Complete)),
-            ')' => return IResult::Done(remaining, FilterArg::String(result)),
+            ')' if result.len() == 0 => return Err(nom::Err::Error(error_position!(remaining, nom::ErrorKind::Complete))),
+            ')' => return Ok((remaining, FilterArg::String(result))),
             _ => {}
         };
         remaining = &remaining[1..];
     }
-    IResult::Error(error_code!(nom::ErrorKind::Complete))
+    Err(nom::Err::Error(error_position!(remaining, nom::ErrorKind::Complete)))
 }
 
 fn url_or_filter(input: &str) -> IResult<&str, FilterArg> {
-    if input.find("(").unwrap_or(input.len()) < input.find(":").unwrap_or(input.len()) {
-        filter(input).map(|f| FilterArg::Img(f))
+    if let Some(n) = input.find(|c| ":,()".contains(c)) {
+        if &input[n..n+1] == "(" {
+            filter(input).map(|(rem, f)| (rem, FilterArg::Img(f)))
+        } else {
+            url(input)
+        }
     } else {
         url(input)
     }
@@ -40,7 +44,7 @@ fn parse_int_arg(input: &str) -> IResult<&str, isize> {
         remaining = &remaining[1..];
         -1
     } else { 1 };
-    digit(remaining).map(|digits| digits.parse::<isize>().unwrap() * mult)
+    digit(remaining).map(|(rem, digits)| (rem, digits.parse::<isize>().unwrap() * mult))
 }
 
 // Source: https://github.com/Geal/nom/blob/master/tests/float.rs#L28
@@ -103,10 +107,10 @@ named!(pub filter(&str) -> Filter, do_parse! (
 
 pub fn parse(input: &str) -> Result<Filter, Error> {
     match filter(input) {
-        IResult::Done("", filter) => Ok(filter),
-        IResult::Done(remaining, _) => bail!("Url parse error. Remaining data: {}", remaining),
-        IResult::Incomplete(_) => bail!("Incomplete url."),
-        IResult::Error(e) => bail!("Url parse error: {:?}.", e),
+        Ok(("", filter)) => Ok(filter),
+        Ok((remaining, _)) => bail!("Url parse error. Remaining data: {}", remaining),
+        Err(nom::Err::Incomplete(_)) => bail!("Incomplete url."),
+        Err(e) => bail!("Url parse error: {:?}.", e),
     }
 }
 

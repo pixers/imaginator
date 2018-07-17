@@ -1,6 +1,3 @@
-#![feature(global_allocator, allocator_api, custom_attribute)]
-#![feature(type_ascription)]
-
 extern crate hyper;
 extern crate futures;
 extern crate pretty_env_logger;
@@ -26,7 +23,7 @@ extern crate zip;
 extern crate imaginator_common as imaginator;
 extern crate imaginator_plugins;
 
-use std::heap::System;
+use std::alloc::System;
 
 // When used in this program, jemalloc leaks virtual memory.
 // Unfortunately, I don't know why. Regardless, using malloc fixes the problem.

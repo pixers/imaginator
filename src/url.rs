@@ -1,4 +1,4 @@
-use nom::IResult;
+use nom;
 use base64;
 use crypto::hmac::Hmac;
 use crypto::mac::{MacResult, Mac};
@@ -54,12 +54,12 @@ named!(full_url(&str) -> (Option<bool>, Filter), do_parse! (
 
 pub fn parse(input: &str) -> Result<Filter, UrlParseError> {
     match full_url(input) {
-        IResult::Done("", (sig, filter)) => match sig {
+        Ok(("", (sig, filter))) => match sig {
             Some(false) => Err(UrlParseError::InvalidSignature),
             _ => Ok(filter),
         },
-        IResult::Done(remaining, _) => Err(UrlParseError::RemainingData(remaining.to_owned())),
-        IResult::Incomplete(_) => Err(UrlParseError::IncompleteUrl),
-        IResult::Error(e) => Err(UrlParseError::ParseError(format!("{:?}", e))),
+        Ok((remaining, _)) => Err(UrlParseError::RemainingData(remaining.to_owned())),
+        Err(nom::Err::Incomplete(_)) => Err(UrlParseError::IncompleteUrl),
+        Err(e) => Err(UrlParseError::ParseError(format!("{:?}", e))),
     }
 }

@@ -6,7 +6,7 @@ authors = ["Błażej Święcicki <blazej.swiecicki@pixers.pl>"]
 [dependencies]
 failure = "0.1"
 hyper = "0.11"
-nom = "^3.2"
+nom = "^4.0"
 base64 = "^0.9"
 rust-crypto = "^0.2"
 futures = "0.1.14"
