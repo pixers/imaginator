@@ -19,6 +19,7 @@ pub struct Config {
     #[serde(flatten)]
     pub filters: Filters,
     pub allow_builtin_filters: bool,
+    pub log_filters_header: Option<String>
 }
 
 lazy_static! {

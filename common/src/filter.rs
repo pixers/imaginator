@@ -3,7 +3,7 @@ use img::{self, Image};
 use url;
 use std::fmt::Display;
 use std::str::FromStr;
-use hyper::{self, StatusCode};
+use hyper;
 use futures::{Future as FutureTrait, IntoFuture, future};
 use tokio_core::reactor::Remote;
 use failure::{Fail, Error};
@@ -128,12 +128,14 @@ pub fn as_future_image(f: Box<FutureImage>) -> Box<FutureImage> {
 pub type FutureImage = FutureTrait<Item = Box<img::Image>, Error = Error>;
 pub type Future = FutureTrait<Item = Box<FilterResult>, Error = Error>;
 pub type Args = Vec<FilterArg>;
-pub type FilterMap = HashMap<&'static str, &'static (Fn(&Context, &Args) -> Box<Future> + Sync)>;
+pub type FilterMap = HashMap<&'static str, &'static (Fn(&mut Context, &Args) -> Box<Future> + Sync)>;
 
 #[derive(Clone)]
 pub struct Context {
     pub filters: &'static FilterMap,
-    pub remote: Remote
+    pub remote: Remote,
+    pub log_filters_header: &'static Option<String>,
+    pub response_headers: Rc<HashMap<String, String>>
 }
 
 pub fn parse_size<T: Into<f32>>(val: T, unit: &SizeUnit, img: &Image) -> Result<f32, Error> {
@@ -175,7 +177,7 @@ pub trait ArgTypeImg: Sized + FromStr {
 
 pub trait ArgTypeContext: Sized {
     /// This trait is similar to AugType, but requires a Context.
-    fn arg_type_context(name: &str, args: &Args, i: usize, context: &Context) -> Self;
+    fn arg_type_context(name: &str, args: &Args, i: usize, context: &mut Context) -> Self;
 }
 
 impl ArgType for String {
@@ -247,7 +249,7 @@ impl ArgType for Filter {
 }
 
 impl ArgTypeContext for Box<FutureImage> {
-    fn arg_type_context(name: &str, args: &Args, i: usize, context: &Context) -> Self {
+    fn arg_type_context(name: &str, args: &Args, i: usize, context: &mut Context) -> Self {
         match args.get(i) {
             Some(&FilterArg::Img(ref val)) =>
                 as_future_image(Box::new(exec_filter(context, val).and_then(|img| Ok(Box::new(img.image()?))))),
@@ -363,7 +365,7 @@ macro_rules! image_filter {
     };
 
     ($name:ident ($img:ident : Image, $ctx:ident : &Context, $( $args:tt )* ) $body:block) => {
-        pub fn $name($ctx: &$crate::filter::Context, args: &$crate::filter::Args) -> Box<$crate::filter::Future> {
+        pub fn $name($ctx: &mut $crate::filter::Context, args: &$crate::filter::Args) -> Box<$crate::filter::Future> {
             let img = arg_type!($name, args, 0, $ctx, Image);
 
             #[allow(unused_variables)]
@@ -397,17 +399,43 @@ fn inject_img(img: Box<img::Image>, filter: &mut Filter) {
     filter.args[0] = FilterArg::ResolvedImg(*img);
 }
 
-pub fn exec_from_partial_url(context: &Context, img: Box<img::Image>, url: &str) -> Box<Future> {
-    let context = context.clone();
+pub fn exec_from_partial_url(context: &mut Context, img: Box<img::Image>, url: &str) -> Box<Future> {
+    let mut context = context.clone();
     let mut subst_url = "__img__():".to_owned();
     subst_url.push_str(url);
     Box::new(url::parse(&subst_url).into_future().and_then(move |mut filter| {
         inject_img(img, &mut filter);
-        exec_filter(&context, &filter)
+        exec_filter(&mut context, &filter)
     }))
 }
 
-pub fn exec_filter(context: &Context, filter: &Filter) -> Box<Future> {
+fn log_filter(context: &mut Context, filter: &Filter) -> Result<(), Error> {
+    let header_name = if let Some(ref name) = context.log_filters_header {
+        name
+    } else {
+        return Ok(())
+    };
+
+    let headers = match Rc::get_mut(&mut context.response_headers) {
+        Some(headers) => headers,
+        None => bail!("Can't log usage of filter {}", filter.name)
+    };
+    let mut route = String::new();
+    if let Some(val) = headers.get(header_name) {
+        route.push_str(val);
+    }
+    if route.len() > 0 {
+        route.push_str(",")
+    }
+    route.push_str(filter.name.as_str());
+    headers.insert(header_name.to_owned(), route);
+    Ok(())
+}
+
+pub fn exec_filter(context: &mut Context, filter: &Filter) -> Box<Future> {
+    if let Err(e) = log_filter(context, filter) {
+        return Box::new(future::err(e));
+    }
     match context.filters.get(filter.name.as_str()) {
         Some(f) => (f)(context, &filter.args),
         None => Box::new(future::err(format_err!("no such filter: {}", filter.name)))

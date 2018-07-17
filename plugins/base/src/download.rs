@@ -98,8 +98,18 @@ pub fn download_url(context: &Context, url: &str) -> Box<FutureTrait<Item = Vec<
     Box::new(body.map(move |body| body.to_vec()))
 }
 
-pub fn filter(context: &Context, args: &Args) -> Box<Future> {
-    let url = decode_url(&arg_type!(download, args, 0, String));
+pub fn filter(context: &mut Context, args: &Args) -> Box<Future> {
+    let url_arg = arg_type!(download, args, 0, String);
+    context.log_filters_header.as_ref().map(|header_name|
+        Rc::get_mut(&mut context.response_headers).map(|h|
+            h.entry(header_name.clone()).and_modify(|value| {
+                value.push_str("(");
+                value.push_str(url_arg.splitn(2, ':').next().unwrap());
+                value.push_str(")");
+            })
+        )
+    );
+    let url = decode_url(&url_arg);
     let dpi = if args.len() > 1 {
         Some(arg_type!(download, args, 1, isize) as f64)
     } else { None };

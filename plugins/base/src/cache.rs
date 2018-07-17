@@ -10,8 +10,9 @@ use imaginator::filter::{FilterArg, Context, Args, Future, FilterResult, exec_fi
 use imaginator::img::Image;
 use crypto::digest::Digest;
 use crypto::sha1::Sha1;
-use std::fs::{File};
 use std::rc::Rc;
+use byteorder::{ReadBytesExt, WriteBytesExt, NativeEndian};
+use std::io::Write;
 use serde_json;
 
 static INIT_CACHE: Once = ONCE_INIT;
@@ -67,40 +68,54 @@ fn cache_path(url: &str) -> String {
     let mut hasher = Sha1::new();
     hasher.input_str(url);
     let hash_result = hasher.result_str();
-    let (a, b) = hash_result.split_at(2);
-    a.to_owned() + "/" + b
+    let mut path = String::new();
+    path.push_str(&hash_result[0..2]);
+    path.push_str("/");
+    path.push_str(&hash_result[2..4]);
+    path.push_str("/");
+    path.push_str(&hash_result[4..6]);
+    path.push_str("/");
+    path.push_str(&hash_result[6..]);
+    path
 }
 
 fn save(cache_name: &str, path: String, result: &Box<FilterResult>) -> Result<(), Error> {
-    let mut meta_name = cache(&cache_name)?.path().to_str().unwrap().to_owned();
-    meta_name.push_str("/");
-    meta_name.push_str(&path);
-    meta_name.push_str(".meta");
     let metadata = CacheMetadata {
         content_type: format!("{}", result.content_type()?.0),
         dpi: result.dpi().ok()
     };
-    cache(cache_name)?.insert_bytes(path, result.content().as_ref())?;
-    serde_json::to_writer(File::create(meta_name)?, &metadata)?;
+    let mut output: Vec<u8> = vec![];
+    let meta = serde_json::to_string(&metadata)?;
+    output.write_u32::<NativeEndian>(meta.len() as u32)?;
+    output.write(meta.as_bytes())?;
+    output.write(result.content().as_ref())?;
+    cache(cache_name)?.insert_bytes(path, output.as_slice())?;
     Ok(())
 }
 
-fn filter_result(context: &Context, cache_name: String, args: &Args) -> Result<Box<Future>, Error> {
+fn get_cache_entry(cache_name: &str, params: &str) -> Result<CacheEntry, Error> {
+    if let Ok(mut reader) = cache(&cache_name)?.get(params.clone()) {
+        let size = reader.read_u32::<NativeEndian>()?;
+        let mut json_buf = vec![0; size as usize];
+        reader.read_exact(json_buf.as_mut_slice())?;
+        let content_type: CacheMetadata = serde_json::from_reader(json_buf.as_slice())?;
+        let mut buf = vec![];
+        reader.read_to_end(&mut buf)?;
+        Ok(CacheEntry {
+            metadata: content_type,
+            buffer: Rc::new(buf)
+        })
+    } else {
+        Err(format_err!("Entry not in cache!"))
+    }
+}
+
+fn filter_result(context: &mut Context, cache_name: String, args: &Args) -> Result<Box<Future>, Error> {
     if let Some(&FilterArg::Img(ref filter)) = args.get(0) {
         let params = cache_path(&format!("{:?}", args[0]));
 
-        let mut meta_name = cache(&cache_name)?.path().to_str().unwrap().to_owned();
-        meta_name.push_str("/");
-        meta_name.push_str(&params);
-        meta_name.push_str(".meta");
-        if let Ok(mut reader) = cache(&cache_name)?.get(params.clone()) {
-            let content_type: CacheMetadata = serde_json::from_reader(File::open(meta_name)?)?;
-            let mut buf = vec![];
-            reader.read_to_end(&mut buf)?;
-            Ok(Box::new(future::ok(Box::new(CacheEntry {
-                metadata: content_type,
-                buffer: Rc::new(buf)
-            }).into())))
+        if let Ok(entry) = get_cache_entry(&cache_name, &params) {
+            Ok(Box::new(future::ok(Box::new(entry).into())))
         } else {
             Ok(Box::new(exec_filter(context, filter).map(move |img| {
                 save(&cache_name, params, &img).unwrap_or_else(|e| eprintln!("{}", e));
@@ -112,8 +127,17 @@ fn filter_result(context: &Context, cache_name: String, args: &Args) -> Result<B
     }
 }
 
-pub fn filter(context: &Context, args: &Args) -> Box<Future> {
+pub fn filter(context: &mut Context, args: &Args) -> Box<Future> {
     let cache_name = arg_type!(cache, args, 1, String);
+    context.log_filters_header.as_ref().map(|header_name|
+        Rc::get_mut(&mut context.response_headers).map(|h|
+            h.entry(header_name.clone()).and_modify(|value| {
+                value.push_str("(");
+                value.push_str(cache_name.as_str());
+                value.push_str(")");
+            })
+        )
+    );
     match filter_result(context, cache_name, args) {
         Ok(future) => future,
         Err(err) => Box::new(future::err(err))

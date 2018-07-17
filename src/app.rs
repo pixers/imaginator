@@ -8,10 +8,10 @@ use chrono::prelude::*;
 use cfg::CONFIG;
 use hyper;
 use url;
-use imaginator::filter;
+use imaginator::filter::{self, FilterResult};
 use std::rc::Rc;
 
-type FilterMap = HashMap<&'static str, &'static (Fn(&filter::Context, &filter::Args) -> Box<filter::Future> + Sync)>;
+type FilterMap = HashMap<&'static str, &'static (Fn(&mut filter::Context, &filter::Args) -> Box<filter::Future> + Sync)>;
 lazy_static! {
     static ref FILTERS: FilterMap = {
         use imaginator_plugins;
@@ -74,16 +74,18 @@ fn apply_filter_aliases(mut filter: filter::Filter) -> Result<filter::Filter, Er
     }
 }
 
-pub fn exec_from_url(remote: &Remote, url: &str) -> Box<filter::Future> {
+pub fn exec_from_url(remote: &Remote, url: &str) -> Box<Future<Item = (Rc<HashMap<String, String>>, Box<FilterResult>), Error = Error>> {
     let filter = match url::parse(url).map_err(Error::from).and_then(apply_filter_aliases) {
         Ok(filter) => filter,
         Err(e) => return Box::new(future::err(e))
     };
-    let context = filter::Context {
+    let mut context = filter::Context {
         filters: &FILTERS,
-        remote: remote.clone()
+        remote: remote.clone(),
+        log_filters_header: &CONFIG.log_filters_header,
+        response_headers: Rc::new(HashMap::new())
     };
-    filter::exec_filter(&context, &filter)
+    Box::new(filter::exec_filter(&mut context, &filter).map(move |result| (context.response_headers, result)))
 }
 
 impl App {
@@ -121,13 +123,19 @@ impl Service for App {
             ));
         }
         Box::new(exec_from_url(&remote, &url)
-            .and_then(|img| {
-                Ok((img.content_type()?, img.content()))
-            }).map(|(content_type, body)| {
-                Response::new()
+            .and_then(|(headers, img)| {
+                Ok((headers, img.content_type()?, img.content()))
+            }).map(|(headers, content_type, body)| {
+                let mut response = Response::new()
                    .with_header(hyper::header::ContentLength(body.len() as u64))
-                   .with_header(content_type)
-                   .with_body(Rc::try_unwrap(body).unwrap())
+                   .with_header(content_type);
+                {
+                    let response_headers = response.headers_mut();
+                    for (name, value) in headers.iter() {
+                        response_headers.set_raw(name.clone(), value.as_str());
+                    }
+                }
+                response.with_body(Rc::try_unwrap(body).unwrap())
             }).or_else(|err| {
                 if let Some(error_response) = err.downcast_ref::<filter::ErrorResponse>() {
                     let error_response: &filter::FilterResult = error_response;

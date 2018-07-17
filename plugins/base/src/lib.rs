@@ -9,6 +9,7 @@ extern crate futures;
 extern crate serde;
 #[macro_use] extern crate serde_derive;
 extern crate serde_json;
+extern crate byteorder;
 
 use futures::{Future as FutureTrait};
 use imaginator::prelude::*;
@@ -143,7 +144,7 @@ image_filter!(format(img: Image, format: ImageFormat) {
     img.set_format(&format)?;
 });
 
-pub fn compose(context: &Context, args: &Args) -> Box<Future> {
+pub fn compose(context: &mut Context, args: &Args) -> Box<Future> {
     let dst = arg_type!(compose, args, 0, context, Image);
     let src = arg_type!(compose, args, 1, context, Image);
     let args = args.clone();
@@ -216,9 +217,9 @@ image_filter!(repeat(img: Image, count_x: isize, count_y: isize, offset_x: isize
     }
 });
 
-pub fn pattern(context: &Context, args: &Args) -> Box<Future> {
+pub fn pattern(context: &mut Context, args: &Args) -> Box<Future> {
     let img = arg_type!(pattern, args, 0, context, Image);
-    let context = context.clone();
+    let mut context = context.clone();
     let args = args.clone();
 
     Box::new(img.and_then(move |img| {
@@ -231,7 +232,7 @@ pub fn pattern(context: &Context, args: &Args) -> Box<Future> {
 
         let qty_x = (img_width/width).ceil() as isize;
         let qty_y = (img_height/height).ceil() as isize;
-        exec_from_partial_url(&context, img, &format!("fit-in({w},{h}):extend(0,0,{},{}):repeat({},{},{w},{h})", img_width, img_height, qty_x, qty_y, w=width, h=height))
+        exec_from_partial_url(&mut context, img, &format!("fit-in({w},{h}):extend(0,0,{},{}):repeat({},{},{w},{h})", img_width, img_height, qty_x, qty_y, w=width, h=height))
     }))
 }
 
@@ -264,5 +265,5 @@ image_filter!(canvas(img: Image, border_x: f32, border_y: f32) {
 });
 
 image_filter!(background(img: Image, color: String) {
-    img.set_background_color(&color);
+    img.set_background_color(&color)?;
 });
