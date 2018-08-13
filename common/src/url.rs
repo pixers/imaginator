@@ -94,7 +94,7 @@ named!(one_filter(&str) -> Filter, do_parse! (
 named!(pub filter(&str) -> Filter, do_parse! (
     first: call!(one_filter) >>
     next: many0!(complete!(preceded!(tag_s!(":"), call!(one_filter)))) >>
-    opt!(complete!(pair!(tag!("/"), many1!(none_of!("/"))))) >>
+    opt!(complete!(preceded!(tag!("/"), many1!(complete!(none_of!("/")))))) >>
     ({
       let mut current = first;
       for mut f in next { 
