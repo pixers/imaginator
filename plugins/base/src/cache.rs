@@ -54,9 +54,8 @@ impl FilterResult for CacheEntry {
         self.metadata.dpi.ok_or(format_err!("This filter does not return an image!"))
     }
 
-    fn content(&self) -> Rc<Vec<u8>>
-    {
-        self.buffer.clone()
+    fn content(&self) -> Result<Rc<Vec<u8>>, Error> {
+        Ok(self.buffer.clone())
     }
 
     fn image(self: Box<Self>) -> Result<Image, Error> {
@@ -88,7 +87,7 @@ fn save(cache_name: &str, path: String, result: &Box<FilterResult>) -> Result<()
     let meta = serde_json::to_string(&metadata)?;
     output.write_u32::<NativeEndian>(meta.len() as u32)?;
     output.write(meta.as_bytes())?;
-    output.write(result.content().as_ref())?;
+    output.write(result.content()?.as_ref())?;
     cache(cache_name)?.insert_bytes(path, output.as_slice())?;
     Ok(())
 }

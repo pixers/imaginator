@@ -30,8 +30,8 @@ impl FilterResult for DownloadError {
         self.status_code
     }
 
-    fn content(&self) -> Rc<Vec<u8>> {
-        Rc::new(format!("{}", self).into_bytes())
+    fn content(&self) -> Result<Rc<Vec<u8>>, Error> {
+        Ok(Rc::new(format!("{}", self).into_bytes()))
     }
 }
 
@@ -50,8 +50,8 @@ impl FilterResult for DownloadResult {
         Ok(image.format()?.into())
     }
 
-    fn content(&self) -> Rc<Vec<u8>> {
-        self.buffer.clone()
+    fn content(&self) -> Result<Rc<Vec<u8>>, Error> {
+        Ok(self.buffer.clone())
     }
 
     fn image(self: Box<Self>) -> Result<img::Image, Error> {

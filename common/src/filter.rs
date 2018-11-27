@@ -86,7 +86,7 @@ pub trait FilterResult: fmt::Debug {
     fn content_type(&self) -> Result<hyper::header::ContentType, Error>;
     fn dpi(&self) -> Result<(f64, f64), Error> { bail!("This filter does not return an image!"); }
     fn status_code(&self) -> hyper::StatusCode { hyper::StatusCode::Ok }
-    fn content(&self) -> Rc<Vec<u8>>;
+    fn content(&self) -> Result<Rc<Vec<u8>>, Error>;
     fn image(self: Box<Self>) -> Result<img::Image, Error> { bail!("This filter does not return an image!") }
 }
 
@@ -99,8 +99,8 @@ impl FilterResult for img::Image {
         self.resolution()
     }
 
-    fn content(&self) -> Rc<Vec<u8>> {
-        Rc::new(self.encode(self.format().unwrap()).unwrap())
+    fn content(&self) -> Result<Rc<Vec<u8>>, Error> {
+        Ok(Rc::new(self.encode(self.format()?)?))
     }
 
     fn image(self: Box<Self>) -> Result<img::Image, Error> {
@@ -111,7 +111,7 @@ impl FilterResult for img::Image {
 impl FilterResult for ErrorResponse {
     fn content_type(&self) -> Result<hyper::header::ContentType, Error> { self.0.content_type() }
     fn status_code(&self) -> hyper::StatusCode { self.0.status_code() }
-    fn content(&self) -> Rc<Vec<u8>> { self.0.content() }
+    fn content(&self) -> Result<Rc<Vec<u8>>, Error> { self.0.content() }
     fn image(self: Box<Self>) -> Result<img::Image, Error> { self.0.image() }
 }
 
@@ -416,11 +416,11 @@ fn log_filter(context: &mut Context, filter: &Filter) -> Result<(), Error> {
         return Ok(())
     };
 
+    let mut route = String::new();
     let headers = match Rc::get_mut(&mut context.response_headers) {
         Some(headers) => headers,
         None => bail!("Can't log usage of filter {}", filter.name)
     };
-    let mut route = String::new();
     if let Some(val) = headers.get(header_name) {
         route.push_str(val);
     }

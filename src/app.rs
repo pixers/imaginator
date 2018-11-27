@@ -124,7 +124,7 @@ impl Service for App {
         }
         Box::new(exec_from_url(&remote, &url)
             .and_then(|(headers, img)| {
-                Ok((headers, img.content_type()?, img.content()))
+                Ok((headers, img.content_type()?, img.content()?))
             }).map(|(headers, content_type, body)| {
                 let mut response = Response::new()
                    .with_header(hyper::header::ContentLength(body.len() as u64))
@@ -141,7 +141,7 @@ impl Service for App {
                     let error_response: &filter::FilterResult = error_response;
                     Ok(Response::new()
                         .with_status(error_response.status_code())
-                        .with_body(Rc::try_unwrap(error_response.content()).unwrap())
+                        .with_body(Rc::try_unwrap(error_response.content().unwrap()).unwrap())
                     )
                 } else {
                     let mut response = Response::new()
