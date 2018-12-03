@@ -135,7 +135,7 @@ pub struct Context {
     pub filters: &'static FilterMap,
     pub remote: Remote,
     pub log_filters_header: &'static Option<String>,
-    pub response_headers: Rc<HashMap<String, String>>
+    pub response_headers: HashMap<String, String>
 }
 
 pub fn parse_size<T: Into<f32>>(val: T, unit: &SizeUnit, img: &Image) -> Result<f32, Error> {
@@ -417,10 +417,7 @@ fn log_filter(context: &mut Context, filter: &Filter) -> Result<(), Error> {
     };
 
     let mut route = String::new();
-    let headers = match Rc::get_mut(&mut context.response_headers) {
-        Some(headers) => headers,
-        None => bail!("Can't log usage of filter {}", filter.name)
-    };
+    let headers = &mut context.response_headers;
     if let Some(val) = headers.get(header_name) {
         route.push_str(val);
     }

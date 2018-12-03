@@ -74,7 +74,7 @@ fn apply_filter_aliases(mut filter: filter::Filter) -> Result<filter::Filter, Er
     }
 }
 
-pub fn exec_from_url(remote: &Remote, url: &str) -> Box<Future<Item = (Rc<HashMap<String, String>>, Box<FilterResult>), Error = Error>> {
+pub fn exec_from_url(remote: &Remote, url: &str) -> Box<Future<Item = (HashMap<String, String>, Box<FilterResult>), Error = Error>> {
     let filter = match url::parse(url).map_err(Error::from).and_then(apply_filter_aliases) {
         Ok(filter) => filter,
         Err(e) => return Box::new(future::err(e))
@@ -83,7 +83,7 @@ pub fn exec_from_url(remote: &Remote, url: &str) -> Box<Future<Item = (Rc<HashMa
         filters: &FILTERS,
         remote: remote.clone(),
         log_filters_header: &CONFIG.log_filters_header,
-        response_headers: Rc::new(HashMap::new())
+        response_headers: HashMap::new()
     };
     Box::new(filter::exec_filter(&mut context, &filter).map(move |result| (context.response_headers, result)))
 }

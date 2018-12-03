@@ -129,13 +129,11 @@ fn filter_result(context: &mut Context, cache_name: String, args: &Args) -> Resu
 pub fn filter(context: &mut Context, args: &Args) -> Box<Future> {
     let cache_name = arg_type!(cache, args, 1, String);
     context.log_filters_header.as_ref().map(|header_name|
-        Rc::get_mut(&mut context.response_headers).map(|h|
-            h.entry(header_name.clone()).and_modify(|value| {
-                value.push_str("(");
-                value.push_str(cache_name.as_str());
-                value.push_str(")");
-            })
-        )
+        context.response_headers.entry(header_name.clone()).and_modify(|value| {
+            value.push_str("(");
+            value.push_str(cache_name.as_str());
+            value.push_str(")");
+        })
     );
     match filter_result(context, cache_name, args) {
         Ok(future) => future,
