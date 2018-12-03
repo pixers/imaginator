@@ -36,6 +36,7 @@ mod url;
 mod app;
 
 fn main() {
+    lazy_static::initialize(&cfg::CONFIG);
     pretty_env_logger::init();
     http::server();
 }

@@ -7,12 +7,6 @@ use crate::imaginator::cfg::CONFIG as PLUGIN_CONFIG;
 include!(concat!(env!("OUT_DIR"), "/cfg_plugins.rs"));
 
 #[derive(Serialize,Deserialize)]
-pub struct Cache {
-    pub dir: String,
-    pub size: usize,
-}
-
-#[derive(Serialize,Deserialize)]
 pub struct Config {
     pub secret: Option<String>,
     pub aliases: HashMap<String, String>,
