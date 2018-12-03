@@ -1,6 +1,6 @@
 use std::fmt;
-use img::{self, Image};
-use url;
+use crate::img::{self, Image};
+use crate::url;
 use std::fmt::Display;
 use std::str::FromStr;
 use hyper;

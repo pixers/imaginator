@@ -2,7 +2,7 @@ use nom::IResult;
 use failure::Error;
 use nom;
 use nom::digit;
-use filter::{Filter, FilterArg, SizeUnit};
+use crate::filter::{Filter, FilterArg, SizeUnit};
 use std::str::{self, FromStr};
 
 fn url(input: &str) -> IResult<&str, FilterArg> {

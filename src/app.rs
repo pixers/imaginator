@@ -5,10 +5,10 @@ use std::collections::HashMap;
 use failure::Error;
 use regex::Regex;
 use chrono::prelude::*;
-use cfg::CONFIG;
+use crate::cfg::CONFIG;
 use hyper;
-use url;
-use imaginator::filter::{self, FilterResult};
+use crate::url;
+use crate::imaginator::filter::{self, FilterResult};
 use std::rc::Rc;
 
 type FilterMap = HashMap<&'static str, &'static (Fn(&mut filter::Context, &filter::Args) -> Box<filter::Future> + Sync)>;

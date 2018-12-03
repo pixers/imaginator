@@ -3,9 +3,9 @@ use base64;
 use crypto::hmac::Hmac;
 use crypto::mac::{MacResult, Mac};
 use crypto::sha1::Sha1;
-use cfg::CONFIG;
-use imaginator::url::filter;
-use imaginator::filter::Filter;
+use crate::cfg::CONFIG;
+use crate::imaginator::url::filter;
+use crate::imaginator::filter::Filter;
 
 #[derive(Debug, Fail, Clone)]
 pub enum UrlParseError {

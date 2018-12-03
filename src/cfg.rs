@@ -2,7 +2,7 @@ use std::fs::File;
 use std::collections::HashMap;
 use serde_yaml;
 use std::any::Any;
-use imaginator::cfg::CONFIG as PLUGIN_CONFIG;
+use crate::imaginator::cfg::CONFIG as PLUGIN_CONFIG;
 
 include!(concat!(env!("OUT_DIR"), "/cfg_plugins.rs"));
 

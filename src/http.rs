@@ -9,7 +9,7 @@ use tokio_core::net::TcpListener;
 use tokio_core::reactor::Core;
 use num_cpus;
 use net2;
-use app::App;
+use crate::app::App;
 
 pub fn server() {
     let addr = "0.0.0.0:3000".parse().unwrap();

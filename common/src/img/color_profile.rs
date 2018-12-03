@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use img::colorspace::Colorspace;
+use crate::img::colorspace::Colorspace;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[allow(non_camel_case_types)]
