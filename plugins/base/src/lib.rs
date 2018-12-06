@@ -255,7 +255,7 @@ pub fn pattern(context: &mut Context, args: &Args) -> Box<Future> {
 
         let qty_x = (img_width/width).ceil() as isize;
         let qty_y = (img_height/height).ceil() as isize;
-        exec_from_partial_url(&mut context, img, &format!("fit-in({w},{h}):extend(0,0,{},{}):repeat({},{},{w},{h})", img_width, img_height, qty_x, qty_y, w=width, h=height))
+        exec_from_partial_url(&mut context, img, &format!("resize({w},{h}):extend(0,0,{},{}):repeat({},{},{w},{h})", img_width, img_height, qty_x, qty_y, w=width, h=height))
     }))
 }
 
