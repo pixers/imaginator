@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use ::imaginator::img::ImageFormat;
+use serde_humanize_rs;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ImageConfig {
@@ -21,6 +22,7 @@ impl Default for ImageConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Cache {
     pub dir: String,
+    #[serde(deserialize_with = "serde_humanize_rs::deserialize")]
     pub size: usize,
 }
 

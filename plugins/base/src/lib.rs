@@ -11,6 +11,7 @@ extern crate serde;
 extern crate serde_json;
 extern crate bincode;
 extern crate byteorder;
+extern crate serde_humanize_rs;
 
 use futures::{Future as FutureTrait};
 use imaginator::prelude::*;
