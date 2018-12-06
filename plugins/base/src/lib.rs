@@ -52,7 +52,9 @@ pub fn plugin() -> PluginInformation {
     map.insert("gravity", &gravity);
     map.insert("bg", &background);
     PluginInformation {
-        filters: map
+        filters: map,
+        init: None,
+        exit: None
     }
 }
 

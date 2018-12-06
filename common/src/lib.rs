@@ -15,5 +15,7 @@ pub mod filter;
 pub mod cfg;
 pub mod prelude;
 pub struct PluginInformation {
-    pub filters: filter::FilterMap
+    pub filters: filter::FilterMap,
+    pub init: Option<&'static Fn() -> Result<(), failure::Error>>,
+    pub exit: Option<&'static Fn() -> Result<(), failure::Error>>,
 }

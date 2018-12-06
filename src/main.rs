@@ -15,6 +15,8 @@ extern crate flate2;
 extern crate regex;
 extern crate chrono;
 extern crate zip;
+extern crate systemd;
+extern crate signal_hook;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate failure;
 #[macro_use] extern crate nom;
@@ -38,5 +40,16 @@ mod app;
 fn main() {
     lazy_static::initialize(&cfg::CONFIG);
     pretty_env_logger::init();
+    for plugin in imaginator_plugins::plugins().values() {
+        if let Some(init) = plugin.init {
+            init().unwrap();
+        }
+    }
+    systemd::daemon::notify(false, [(systemd::daemon::STATE_READY, "1")].into_iter()).unwrap();
     http::server();
+    for plugin in imaginator_plugins::plugins().values() {
+        if let Some(exit) = plugin.exit {
+            exit().unwrap();
+        }
+    }
 }
