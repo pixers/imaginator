@@ -3,12 +3,13 @@ extern crate crypto;
 extern crate hyper;
 extern crate hyper_tls;
 extern crate zip;
-extern crate lru_disk_cache;
+extern crate linked_hash_map;
 extern crate futures;
 #[macro_use] extern crate failure;
 extern crate serde;
 #[macro_use] extern crate serde_derive;
 extern crate serde_json;
+extern crate bincode;
 extern crate byteorder;
 
 use futures::{Future as FutureTrait};
@@ -21,9 +22,28 @@ use std::collections::HashMap;
 pub mod cfg;
 pub use cfg::Config;
 
+pub mod lru_cache;
 pub mod cache;
 
 pub mod download;
+
+fn init_caches() -> Result<(), Error> {
+    let caches = &config::<Config>().unwrap().caches;
+    for key in caches.keys() {
+        let _mutex_gurard = cache::cache(key)?;
+    }
+
+    Ok(())
+}
+
+fn save_caches() -> Result<(), Error> {
+    let caches = &config::<Config>().unwrap().caches;
+    for key in caches.keys() {
+        cache::cache(key)?.export()?;
+    }
+
+    Ok(())
+}
 
 pub fn plugin() -> PluginInformation {
     let mut map: FilterMap = HashMap::new();
@@ -53,8 +73,8 @@ pub fn plugin() -> PluginInformation {
     map.insert("bg", &background);
     PluginInformation {
         filters: map,
-        init: None,
-        exit: None
+        init: Some(&init_caches),
+        exit: Some(&save_caches)
     }
 }
 

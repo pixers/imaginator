@@ -1,6 +1,5 @@
 use std::sync::{Mutex, Once, ONCE_INIT, MutexGuard};
 use std::collections::HashMap;
-use lru_disk_cache::LruDiskCache;
 use imaginator::cfg::config;
 use cfg::Config;
 use failure::Error;
@@ -15,21 +14,30 @@ use byteorder::{ReadBytesExt, WriteBytesExt, NativeEndian};
 use std::io::Write;
 use serde_json;
 
-static INIT_CACHE: Once = ONCE_INIT;
-static mut FILE_CACHE: Option<HashMap<String, Mutex<LruDiskCache>>> = None;
+use lru_cache::LruCache;
 
-fn cache(name: &str) -> Result<MutexGuard<'static, LruDiskCache>, Error> {
+#[derive(Debug, Clone, Eq, PartialEq, Fail)]
+#[fail(display="No such cache: {}", _0)]
+struct NoSuchCache(String);
+
+static INIT_CACHE: Once = ONCE_INIT;
+static mut FILE_CACHE: Option<HashMap<String, Mutex<LruCache>>> = None;
+
+pub fn cache(name: &str) -> Result<MutexGuard<'static, LruCache>, Error> {
     INIT_CACHE.call_once(|| {
         let mut map = HashMap::new();
         for (name, cache) in &config::<Config>().unwrap().caches {
             map.insert(name.clone(), 
-                Mutex::new(LruDiskCache::new(&cache.dir, cache.size).unwrap())
+                Mutex::new(LruCache::new(&cache.dir, cache.size).unwrap())
             );
         }
         unsafe { FILE_CACHE = Some(map); }
     });
     unsafe {
-        Ok(FILE_CACHE.as_ref().unwrap().get(name).unwrap().lock().unwrap())
+        Ok(FILE_CACHE.as_ref().unwrap() // This should never fail, because we initialize the FILE_CACHE above
+           .get(name).ok_or_else(|| NoSuchCache(name.to_owned()))?
+           .lock().unwrap() // If the mutex is poisoned, there's no sensible thing we can do anyway.
+        )
     }
 }
 
