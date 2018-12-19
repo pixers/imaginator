@@ -30,14 +30,17 @@ pub struct App {
     pub tokio_core: Handle,
 }
 
-fn apply_alias_args(mut filter: filter::Filter, args: &filter::Args) -> filter::Filter {
+fn apply_alias_args(mut filter: filter::Filter, args: &filter::Args) -> Result<filter::Filter, Error> {
     lazy_static! {
         static ref RE_ARG: Regex = Regex::new(r"\{(\d+)\}").unwrap();
     }
     let mut new_args = Vec::with_capacity(filter.args.len());
+    if filter.args.len() != args.len() {
+        bail!("Wrong number of arguments passed to {}. Expected: {}. You passed: {}.", filter.name, filter.args.len(), args.len());
+    }
     for arg in filter.args.into_iter() {
         match arg {
-            filter::FilterArg::Img(filter) => new_args.push(filter::FilterArg::Img(apply_alias_args(filter, args))),
+            filter::FilterArg::Img(filter) => new_args.push(filter::FilterArg::Img(apply_alias_args(filter, args)?)),
             filter::FilterArg::String(ref s) => if let Some(m) = RE_ARG.captures(s) {
                 let arg_num: usize = m[1].parse().unwrap();
                 new_args.push(args.get(arg_num).unwrap().clone())
@@ -50,7 +53,7 @@ fn apply_alias_args(mut filter: filter::Filter, args: &filter::Args) -> filter::
         }
     }
     filter.args = new_args;
-    filter
+    Ok(filter)
 }
 
 fn apply_filter_aliases(mut filter: filter::Filter) -> Result<filter::Filter, Error> {
@@ -63,7 +66,7 @@ fn apply_filter_aliases(mut filter: filter::Filter) -> Result<filter::Filter, Er
     }
     filter.args = new_args;
     if let Some(value) = CONFIG.aliases.get(&filter.name) {
-        let new_filter = apply_alias_args(url::parse(value)?, &filter.args);
+        let new_filter = apply_alias_args(url::parse(value)?, &filter.args)?;
         Ok(new_filter)
     } else {
         if CONFIG.allow_builtin_filters {
