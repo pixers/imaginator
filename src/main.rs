@@ -17,6 +17,7 @@ extern crate chrono;
 extern crate zip;
 extern crate systemd;
 extern crate signal_hook;
+extern crate urlencoding;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate failure;
 #[macro_use] extern crate nom;

@@ -35,14 +35,14 @@ fn apply_alias_args(mut filter: filter::Filter, args: &filter::Args) -> Result<f
         static ref RE_ARG: Regex = Regex::new(r"\{(\d+)\}").unwrap();
     }
     let mut new_args = Vec::with_capacity(filter.args.len());
-    if filter.args.len() != args.len() {
-        bail!("Wrong number of arguments passed to {}. Expected: {}. You passed: {}.", filter.name, filter.args.len(), args.len());
-    }
     for arg in filter.args.into_iter() {
         match arg {
             filter::FilterArg::Img(filter) => new_args.push(filter::FilterArg::Img(apply_alias_args(filter, args)?)),
             filter::FilterArg::String(ref s) => if let Some(m) = RE_ARG.captures(s) {
                 let arg_num: usize = m[1].parse().unwrap();
+                if arg_num >= args.len() {
+                    bail!("Not enough arguments passed to {}. Expected at least {}, but you passed {}.", filter.name, arg_num+1, args.len());
+                }
                 new_args.push(args.get(arg_num).unwrap().clone())
             } else {
                 // This clone() will potentially be unnecessary when non-lexical lifetimes are
@@ -78,7 +78,7 @@ fn apply_filter_aliases(mut filter: filter::Filter) -> Result<filter::Filter, Er
 }
 
 pub fn exec_from_url(remote: &Remote, url: &str) -> Box<Future<Item = (HashMap<String, String>, Box<FilterResult>), Error = Error>> {
-    let filter = match url::parse(url).map_err(Error::from).and_then(apply_filter_aliases) {
+    let filter = match url::parse(&url).map_err(Error::from).and_then(apply_filter_aliases) {
         Ok(filter) => filter,
         Err(e) => return Box::new(future::err(e))
     };

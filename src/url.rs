@@ -1,5 +1,6 @@
 use nom;
 use base64;
+use urlencoding;
 use crypto::hmac::Hmac;
 use crypto::mac::{MacResult, Mac};
 use crypto::sha1::Sha1;
@@ -16,7 +17,9 @@ pub enum UrlParseError {
     #[fail(display = "Incomplete url.")]
     IncompleteUrl,
     #[fail(display = "Url parse error: {}", _0)]
-    ParseError(String)
+    ParseError(String),
+    #[fail(display = "Url decoding error.")]
+    UrlDecodingError,
 }
 
 fn check_signature(input: &str, rest: &str) -> bool {
@@ -53,7 +56,11 @@ named!(full_url(&str) -> (Option<bool>, Filter), do_parse! (
 ));
 
 pub fn parse(input: &str) -> Result<Filter, UrlParseError> {
-    match full_url(input) {
+    let url = match urlencoding::decode(input) {
+        Ok(url) => url,
+        Err(_) => return Err(UrlParseError::UrlDecodingError)
+    };
+    match full_url(&url) {
         Ok(("", (sig, filter))) => match sig {
             Some(false) => Err(UrlParseError::InvalidSignature),
             _ => Ok(filter),
