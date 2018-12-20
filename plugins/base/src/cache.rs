@@ -122,8 +122,22 @@ fn filter_result(context: &mut Context, cache_name: String, args: &Args) -> Resu
         let params = cache_path(&format!("{:?}", args[0]));
 
         if let Ok(entry) = get_cache_entry(&cache_name, &params) {
+            context.log_filters_header.as_ref().map(|header_name|
+                context.response_headers.entry(header_name.clone()).and_modify(|value| {
+                    value.push_str("_hit(");
+                    value.push_str(cache_name.as_str());
+                    value.push_str(")");
+                })
+            );
             Ok(Box::new(future::ok(Box::new(entry).into())))
         } else {
+            context.log_filters_header.as_ref().map(|header_name|
+                context.response_headers.entry(header_name.clone()).and_modify(|value| {
+                    value.push_str("_miss(");
+                    value.push_str(cache_name.as_str());
+                    value.push_str(")");
+                })
+            );
             Ok(Box::new(exec_filter(context, filter).map(move |img| {
                 save(&cache_name, params, &img).unwrap_or_else(|e| eprintln!("{}", e));
                 img.into()
@@ -136,13 +150,6 @@ fn filter_result(context: &mut Context, cache_name: String, args: &Args) -> Resu
 
 pub fn filter(context: &mut Context, args: &Args) -> Box<Future> {
     let cache_name = arg_type!(cache, args, 1, String);
-    context.log_filters_header.as_ref().map(|header_name|
-        context.response_headers.entry(header_name.clone()).and_modify(|value| {
-            value.push_str("(");
-            value.push_str(cache_name.as_str());
-            value.push_str(")");
-        })
-    );
     match filter_result(context, cache_name, args) {
         Ok(future) => future,
         Err(err) => Box::new(future::err(err))

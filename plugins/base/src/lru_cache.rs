@@ -1,7 +1,7 @@
 use linked_hash_map::LinkedHashMap;
 use failure::Error;
 use std::path::PathBuf;
-use std::fs::{File, create_dir_all};
+use std::fs::{File, create_dir_all, remove_file};
 use std::io::{Read, Seek, Write};
 use bincode::{deserialize_from, serialize_into};
 
@@ -34,7 +34,7 @@ impl LruCache {
 
     pub fn new<P: Into<PathBuf>>(root: P, capacity: usize) -> Result<LruCache, Error> {
         let root = root.into();
-        if let Some(imported) = LruCache::import(&root)? {
+        if let Some(imported) = LruCache::import(&root, capacity)? {
             return Ok(imported);
         }
 
@@ -55,7 +55,7 @@ impl LruCache {
     }
 
     fn load(&mut self, path: PathBuf) -> Result<(), Error> {
-        let root_path_length = self.root.to_str().unwrap().len();
+        let root_path_length = self.root.to_str().unwrap().len() + 1;
         for entry in path.read_dir()? {
             let entry = entry?;
             let metadata = entry.metadata()?;
@@ -71,13 +71,17 @@ impl LruCache {
         Ok(())
     }
 
-    pub fn import<P: Into<PathBuf>>(root: P) -> Result<Option<LruCache>, Error> {
+    pub fn import<P: Into<PathBuf>, S: Into<Option<usize>>>(root: P, capacity: S) -> Result<Option<LruCache>, Error> {
         let mut path = root.into().to_str().unwrap().to_owned();
         path.push_str(".cache");
         if !PathBuf::from(&path).exists() {
             return Ok(None)
         }
-        Ok(Some(deserialize_from(File::open(path)?)?))
+        let mut cache: LruCache = deserialize_from(File::open(path)?)?;
+        if let Some(capacity) = capacity.into() {
+            cache.capacity = capacity;
+        }
+        Ok(Some(cache))
     }
 
     pub fn export(&self) -> Result<(), Error> {
@@ -104,10 +108,13 @@ impl LruCache {
             return Err(DataTooBigError { size: value.len(), capacity: self.capacity }.into())
         }
 
-        if self.size + value.len() > self.capacity {
-            self.items.pop_front().map(|(_, size)| {
+        while self.size + value.len() > self.capacity {
+            if let Some((name, size)) = self.items.pop_front() {
                 self.size -= size;
-            });
+                let mut path = self.root.clone();
+                path.push(&name);
+                remove_file(path)?;
+            }
         }
 
         let mut path = self.root.clone();
@@ -115,6 +122,7 @@ impl LruCache {
         create_dir_all(path.parent().unwrap())?;
         let mut file = File::create(path)?;
         file.write_all(value)?;
+        self.size += value.len();
         self.items.insert(name, value.len());
 
         Ok(())
