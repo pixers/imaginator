@@ -72,11 +72,7 @@ pub fn plugin() -> PluginInformation {
     map.insert("alpha", &alpha);
     map.insert("gravity", &gravity);
     map.insert("bg", &background);
-    PluginInformation {
-        filters: map,
-        init: Some(&init_caches),
-        exit: Some(&save_caches)
-    }
+    PluginInformation::new(map).with_init(&init_caches).with_exit(&save_caches)
 }
 
 image_filter!(fit_in(img: Image, context: &Context, mut w: isize, mut h: isize) {

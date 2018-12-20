@@ -9,6 +9,7 @@ use crate::cfg::CONFIG;
 use hyper;
 use crate::url;
 use crate::imaginator::filter::{self, FilterResult};
+use futures::future::IntoFuture;
 use std::rc::Rc;
 
 type FilterMap = HashMap<&'static str, &'static (Fn(&mut filter::Context, &filter::Args) -> Box<filter::Future> + Sync)>;
@@ -99,6 +100,26 @@ impl App {
     }
 }
 
+fn handle_failure(err: failure::Error) -> Result<hyper::Response, hyper::Error> {
+    if let Some(error_response) = err.downcast_ref::<filter::ErrorResponse>() {
+        let error_response: &filter::FilterResult = error_response;
+        Ok(Response::new()
+            .with_status(error_response.status_code())
+            .with_body(Rc::try_unwrap(error_response.content().unwrap()).unwrap())
+        )
+    } else {
+        let mut response = Response::new()
+            .with_body(format!("{}", err))
+            .with_header(hyper::header::ContentType::plaintext());
+        if err.downcast_ref::<url::UrlParseError>().is_some() {
+            response.set_status(hyper::StatusCode::BadRequest);
+        } else {
+            response.set_status(hyper::StatusCode::InternalServerError);
+        }
+        Ok(response)
+    }
+}
+
 impl Service for App {
     // boilerplate hooking up hyper's server types
     type Request = Request;
@@ -125,8 +146,26 @@ impl Service for App {
                     .with_status(hyper::StatusCode::MethodNotAllowed)
             ));
         }
-        Box::new(exec_from_url(&remote, &url)
-            .and_then(|(headers, img)| {
+
+        let mut future: Box<Future<Item=Option<hyper::Response>, Error=hyper::Error>> = Box::new(future::ok(None));
+        let request = Rc::new(req);
+        for plugin in imaginator_plugins::plugins().values() {
+            if let Some(middleware) = plugin.middleware {
+                let request = request.clone();
+                future = Box::new(future.and_then(move |response| {
+                    match response {
+                        Some(_) => Box::new(future::ok(response)) as Box<Future<Item=Option<hyper::Response>, Error=_>>,
+                        None => Box::new(middleware(request).or_else(|err| Some(handle_failure(err).into_future())))
+                    }
+                }));
+            }
+        }
+
+        Box::new(future.and_then(move |response| -> Box<Future<Item=hyper::Response, Error=hyper::Error>> {
+            if let Some(r) = response {
+                return Box::new(Ok(r).into_future())
+            }
+            Box::new(exec_from_url(&remote, &url).and_then(|(headers, img)| {
                 Ok((headers, img.content_type()?, img.content()?))
             }).map(|(headers, content_type, body)| {
                 let mut response = Response::new()
@@ -139,28 +178,10 @@ impl Service for App {
                     }
                 }
                 response.with_body(Rc::try_unwrap(body).unwrap())
-            }).or_else(|err| {
-                if let Some(error_response) = err.downcast_ref::<filter::ErrorResponse>() {
-                    let error_response: &filter::FilterResult = error_response;
-                    Ok(Response::new()
-                        .with_status(error_response.status_code())
-                        .with_body(Rc::try_unwrap(error_response.content().unwrap()).unwrap())
-                    )
-                } else {
-                    let mut response = Response::new()
-                        .with_body(format!("{}", err))
-                        .with_header(hyper::header::ContentType::plaintext());
-                    if err.downcast_ref::<url::UrlParseError>().is_some() {
-                        response.set_status(hyper::StatusCode::BadRequest);
-                    } else {
-                        response.set_status(hyper::StatusCode::InternalServerError);
-                    }
-                    Ok(response)
-                }
-            }).map(move |response| { // Logging
+            }).or_else(handle_failure).map(move |response| { // Logging
                 println!("{} {}", log_req, response.status().as_u16());
                 response
-            })
-        )
+            }).into_future())
+        }))
     }
 }
