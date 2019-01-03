@@ -244,6 +244,9 @@ pub fn pattern(context: &mut Context, args: &Args) -> Box<Future> {
     Box::new(img.and_then(move |img| {
         let width = arg_type!(pattern, args, 1, img, isize) as f32;
         let height = arg_type!(pattern, args, 2, img, isize) as f32;
+        if width < 1.0 || height < 1.0 {
+            bail!("Pattern width/height is less than 1px!")
+        }
         Ok((img, width, height))
     }).and_then(move |(img, width, height)| {
         let img_width = img.width() as f32;
